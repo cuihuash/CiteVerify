@@ -44,6 +44,10 @@ AUTHOR_YEAR_START = re.compile(
     r"|(?:(?:[A-Z]|(?:[a-z]{1,4}\s+){1,3}[A-Z])[^\n]{0,500},\s*"
     r"(?:18|19|20)\d{2}(?:,\s*[^.\n]{1,30})?\.\s))"
 )
+LOWERCASE_AUTHOR_YEAR_START = re.compile(
+    r"(?m)^(?=[a-z]{2,20},\s*(?:[A-Za-z]\.?\s*)+"
+    r"\((?:18|19|20)\d{2}(?:[a-z]?|,\s*[^)\n]{1,40})\)(?:\.)?\s)"
+)
 YEAR = re.compile(r"\b(?:18|19|20)\d{2}\b")
 DOI = re.compile(r"\b10\.\d{4,9}/(?:[^\s<>\"']|(?<=-)\s+)+", re.I)
 ARXIV = re.compile(r"\barXiv\s*:\s*([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)\b", re.I)
@@ -145,6 +149,38 @@ def extract_pdf_text(path: Path) -> str:
             # share a baseline; otherwise `1.` and its authors can be split
             # into separate pseudo-references.
             lines.sort(key=lambda entry: (entry[0], entry[1]))
+            coalesced_lines: list[tuple[float, float, str, float]] = []
+            for entry in lines:
+                y, x, text, block_x = entry
+                isolated_number = bool(
+                    re.fullmatch(r"(?:page\s+)?\d+(?:\s+of\s+\d+)?", text, re.I)
+                )
+                if coalesced_lines:
+                    previous_y, previous_x, previous_text, previous_block_x = coalesced_lines[-1]
+                    previous_isolated_number = bool(
+                        re.fullmatch(
+                            r"(?:page\s+)?\d+(?:\s+of\s+\d+)?",
+                            previous_text,
+                            re.I,
+                        )
+                    )
+                    if (
+                        not isolated_number
+                        and not previous_isolated_number
+                        and abs(y - previous_y) <= 1.5
+                        and abs(block_x - previous_block_x) <= 1.5
+                    ):
+                        separator = "" if previous_text.endswith("-") else " "
+                        coalesced_lines[-1] = (
+                            min(previous_y, y),
+                            min(previous_x, x),
+                            previous_text + separator + text,
+                            min(previous_block_x, block_x),
+                        )
+                        continue
+                coalesced_lines.append(entry)
+            lines = coalesced_lines
+
             number_pairs: dict[int, int] = {}
             paired_indices: set[int] = set()
             for index, (y, x, text, _block_x) in enumerate(lines):
@@ -440,17 +476,22 @@ def segment_references(section: str) -> list[tuple[int | None, str]]:
             section,
         )
     )
-    author_year = list(AUTHOR_YEAR_START.finditer(plain_section))
+    author_year = sorted(
+        [
+            *AUTHOR_YEAR_START.finditer(plain_section),
+            *LOWERCASE_AUTHOR_YEAR_START.finditer(plain_section),
+        ],
+        key=lambda match: match.start(),
+    )
 
     # A PDF may mark only some left-margin starts—for example, after a page
     # break or when the publisher uses slightly different indentation. If we
     # have more author/year starts than layout markers, the sparse markers
     # would merge the remaining references into the last one. In that case,
     # use the author/year starts on the marker-free text instead.
-    if (
-        len(author_year) >= 2
-        and len(layout_starts) < len(author_year) - 2
-    ):
+    layout_overcounts = len(layout_starts) > len(author_year) + max(3, len(author_year) // 2)
+    layout_is_sparse = len(layout_starts) < len(author_year) - 2
+    if len(author_year) >= 2 and (layout_overcounts or layout_is_sparse):
         return _segment_at_starts(plain_section, author_year)
 
     if len(layout_starts) >= 2:
@@ -539,6 +580,7 @@ def remove_artifacts(value: str) -> tuple[str, list[str]]:
     cleaned = re.sub(r"(?:,\s*){2,}", ", ", cleaned)
     cleaned = re.sub(r"\s+([,.;:])", r"\1", cleaned)
     cleaned = re.sub(r"([,;])\s*(?=[,.])", r"\1", cleaned)
+    cleaned = re.sub(r",(?=\.{3})", ", ", cleaned)
     cleaned = re.sub(r"\(\s*\)", "", cleaned)
     return cleaned.strip(), flags
 
@@ -594,14 +636,23 @@ def title_candidates(raw: str, cleaned: str) -> list[TitleCandidate]:
         )
         after_year = after_year.lstrip(" .,;:()-")
         after_year, _ = remove_artifacts(after_year)
+        after_year = normalize_whitespace(after_year)
         # Do not treat abbreviations such as `vs.` or `e.g.` inside a title as
         # the end of the title sentence.
-        sentence = re.split(
-            r"(?<!vs\.)(?<!e\.g\.)(?<!i\.e\.)(?<!etc\.)(?<!U\.S\.)(?<!U\.S\.A\.)(?<=[.!?])\s+",
+        publication_boundary = re.search(
+            r"\.\s+[^.]{2,100},\s+\d{1,4}\s*"
+            r"(?:\([^)]*\))?\s*[,\.]",
             after_year,
-            maxsplit=1,
-            flags=re.I,
-        )[0]
+        )
+        if publication_boundary:
+            sentence = after_year[: publication_boundary.start()]
+        else:
+            sentence = re.split(
+                r"(?<!vs\.)(?<!e\.g\.)(?<!i\.e\.)(?<!etc\.)(?<!U\.S\.)(?<!U\.S\.A\.)(?<=[.!?])\s+",
+                after_year,
+                maxsplit=1,
+                flags=re.I,
+            )[0]
         sentence = normalize_whitespace(sentence)
         if len(sentence.split()) >= 2:
             candidates.append(TitleCandidate(sentence, "after_year", 0.80))
