@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 - DOI line-wrap fix
+
+- Preserved numeric DOI suffixes split onto the next PDF line or page when
+  the preceding DOI ends with a hyphen.
+
 ## 0.1.2 - Two-column reference parsing fixes
 
 - Joined separately positioned reference numbers and citation text.

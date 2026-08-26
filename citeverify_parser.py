@@ -375,13 +375,14 @@ def _clean_section(section: str) -> str:
         markerless_line = line.replace(PDF_REFERENCE_START, " ").strip()
         if _line_is_page_marker(markerless_line):
             # Keep a numeric line when it is the continuation of a DOI or
-            # URL split immediately after an underscore (for example, `_`
-            # followed by `02`). Other standalone numbers are page markers.
+            # URL split immediately after an underscore or hyphen (for
+            # example, `_` or `-` followed by the remaining digits). Other
+            # standalone numbers are page markers.
             previous_is_split_identifier = bool(
                 lines
                 and re.search(r"https?://\S+[./_?&=-]$", lines[-1], re.I)
                 and re.fullmatch(r"\d+", markerless_line)
-                and lines[-1].endswith("_")
+                and lines[-1].endswith(("_", "-"))
             )
             if not previous_is_split_identifier:
                 continue
