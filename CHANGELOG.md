@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 - Running-header parsing fix
+
+- Removed journal running headers that were being mistaken for separate
+  references when a citation continued across a PDF page break.
+
 ## 0.1.3 - DOI line-wrap fix
 
 - Preserved numeric DOI suffixes split onto the next PDF line or page when

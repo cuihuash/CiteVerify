@@ -24,7 +24,7 @@ from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 
-USER_AGENT = "CiteVerify/0.1.3 (research reference verification)"
+USER_AGENT = "CiteVerify/0.1.4 (research reference verification)"
 DOI_URL = "https://api.crossref.org/works/{}"
 OPEN_LIBRARY_URL = "https://openlibrary.org/search.json?{}"
 GOOGLE_BOOKS_URL = "https://www.googleapis.com/books/v1/volumes?{}"

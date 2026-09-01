@@ -272,6 +272,12 @@ def extract_pdf_text(path: Path) -> str:
                     and re.search(r"\b(?:18|19|20)\d{2}\)\s+\d{2,4}[a-z]?\d*\b", text)
                 ):
                     continue
+                if y < 60 and re.search(
+                    r"(?:^|[-–—]\s*)page\s+\d+(?:\s+of\s+\d+)?\s*$",
+                    text,
+                    re.I,
+                ):
+                    continue
                 if (
                     y < 60
                     and (
