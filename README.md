@@ -2,7 +2,7 @@
 
 **Current version: 0.1.2**
 
-CiteVerify is a local tool for reviewing references in research papers. It
+CiteVerify is a local tool for reviewing the authenticity of references in research papers. It
 extracts references from PDF and Word files, looks for matching scholarly
 records, and creates a readable HTML report.
 
