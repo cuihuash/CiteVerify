@@ -49,7 +49,12 @@ LOWERCASE_AUTHOR_YEAR_START = re.compile(
     r"\((?:18|19|20)\d{2}(?:[a-z]?|,\s*[^)\n]{1,40})\)(?:\.)?\s)"
 )
 YEAR = re.compile(r"\b(?:18|19|20)\d{2}\b")
-DOI = re.compile(r"\b10\.\d{4,9}/(?:[^\s<>\"']|(?<=-)\s+)+", re.I)
+# Older Wiley/SICI DOIs contain literal angle brackets. Keep paired brackets
+# (including a PDF line break after a hyphen) without consuming URL wrappers.
+DOI = re.compile(
+    r"\b10\.\d{4,9}/(?:[^\s<>\"']|<(?:[^\s<>\"']|(?<=-)\s+)+>|(?<=-)\s+)+",
+    re.I,
+)
 ARXIV = re.compile(r"\barXiv\s*:\s*([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)\b", re.I)
 ISBN = re.compile(
     r"\bISBN(?:-1[03])?\s*[:#]?\s*((?:\d[ -]?){9,16}[\dXx])\b"
@@ -563,7 +568,11 @@ def canonical_isbn(value: str) -> str | None:
 
 def extract_identifiers(raw: str) -> tuple[str | None, str | None, str | None]:
     doi = DOI.search(raw)
-    doi_value = re.sub(r"\s+", "", doi.group(0)).rstrip(".,;)") if doi else None
+    doi_value = re.sub(r"\s+", "", doi.group(0)).rstrip(".,;") if doi else None
+    # Strip citation wrappers, but keep parentheses that belong to the DOI.
+    if doi_value:
+        while doi_value.endswith(")") and doi_value.count(")") > doi_value.count("("):
+            doi_value = doi_value[:-1].rstrip(".,;")
     arxiv = ARXIV.search(raw)
     arxiv_value = arxiv.group(1) if arxiv else None
 
@@ -578,7 +587,16 @@ def extract_identifiers(raw: str) -> tuple[str | None, str | None, str | None]:
 
 def remove_artifacts(value: str) -> tuple[str, list[str]]:
     flags: list[str] = []
-    cleaned = value
+    # Identifier components can look like page ranges (e.g. 1099-0992 in a
+    # SICI DOI). Protect the complete DOI from every cleanup rule, then restore
+    # it with PDF wrapping whitespace removed.
+    protected_dois: list[str] = []
+
+    def protect_doi(match: re.Match[str]) -> str:
+        protected_dois.append(re.sub(r"\s+", "", match.group(0)))
+        return f"\x00DOI{len(protected_dois) - 1}\x00"
+
+    cleaned = DOI.sub(protect_doi, value)
     for name, pattern in ARTIFACT_PATTERNS:
         if pattern.search(cleaned):
             flags.append(name)
@@ -589,6 +607,8 @@ def remove_artifacts(value: str) -> tuple[str, list[str]]:
     cleaned = re.sub(r"([,;])\s*(?=[,.])", r"\1", cleaned)
     cleaned = re.sub(r",(?=\.{3})", ", ", cleaned)
     cleaned = re.sub(r"\(\s*\)", "", cleaned)
+    for index, doi in enumerate(protected_dois):
+        cleaned = cleaned.replace(f"\x00DOI{index}\x00", doi)
     return cleaned.strip(), flags
 
 

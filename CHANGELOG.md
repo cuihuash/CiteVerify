@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased - DOI parsing and cleanup fixes
+
+- Preserved paired angle brackets in older Wiley/SICI DOIs, including DOI
+  components wrapped after a hyphen in PDFs, to prevent truncated lookups
+  and false conflict results.
+- Protected DOIs during reference cleanup so identifier components such as
+  `1099-0992` are not removed as apparent page ranges.
+- Preserved balanced parentheses within DOIs while removing citation wrappers.
+- Added five regression tests covering extraction, cleanup, lookup requests,
+  and HTML reports; confirmed the full DOI is retained in the original PDF.
+  Lookup and report tests use simulated metadata; live lookup was unavailable.
+
 ## 0.1.4 - Running-header parsing fix
 
 - Removed journal running headers that were being mistaken for separate
