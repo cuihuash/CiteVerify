@@ -568,11 +568,11 @@ def canonical_isbn(value: str) -> str | None:
 
 def extract_identifiers(raw: str) -> tuple[str | None, str | None, str | None]:
     doi = DOI.search(raw)
-    doi_value = re.sub(r"\s+", "", doi.group(0)).rstrip(".,;") if doi else None
+    doi_value = re.sub(r"\s+", "", doi.group(0)).rstrip(".,;:") if doi else None
     # Strip citation wrappers, but keep parentheses that belong to the DOI.
     if doi_value:
         while doi_value.endswith(")") and doi_value.count(")") > doi_value.count("("):
-            doi_value = doi_value[:-1].rstrip(".,;")
+            doi_value = doi_value[:-1].rstrip(".,;:")
     arxiv = ARXIV.search(raw)
     arxiv_value = arxiv.group(1) if arxiv else None
 

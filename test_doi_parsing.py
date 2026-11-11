@@ -49,6 +49,10 @@ class DoiParsingTests(unittest.TestCase):
                 self.assertEqual(parser.extract_identifiers(raw)[0], expected)
                 self.assertIn(expected, parser.remove_artifacts(raw)[0])
 
+    def test_trailing_colon_is_not_part_of_doi(self):
+        raw = "Available at https://doi.org/10.1000/example: retrieved 2024."
+        self.assertEqual(parser.extract_identifiers(raw)[0], "10.1000/example")
+
     def test_cleanup_preserves_multiple_dois_and_removes_real_artifacts(self):
         raw = f"pp. 539-560 https://doi.org/{DOI}; doi: 10.1000/1234-5678"
         cleaned, flags = parser.remove_artifacts(raw)
